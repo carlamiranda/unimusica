@@ -1,11 +1,8 @@
 package br.unifor.unimusica.controller;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,66 +14,53 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import br.unifor.unimusica.model.Musica;
+import br.unifor.unimusica.repository.MusicaRepository;
 
 @RestController
 @RequestMapping("/musicas")
 public class MusicaController {
 
-    private List<Musica> musicas = new ArrayList<>();
-    private AtomicInteger contadorMusicas = new AtomicInteger(0);
+    @Autowired
+    private MusicaRepository repository;
 
     @PostMapping
     public ResponseEntity<Musica> cadastrarMusica(@RequestBody Musica musica) {
         if (musica.getNome() == null || musica.getNome().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
-        musica.setId(contadorMusicas.incrementAndGet());
-        musicas.add(musica);
-        return ResponseEntity.status(HttpStatus.CREATED).body(musica);
+        Musica salva = repository.save(musica);
+        return ResponseEntity.status(201).body(salva);
     }
 
     @GetMapping
     public List<Musica> listarMusicas() {
-        return musicas;
+        return repository.findAll();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Musica> buscarMusica(@PathVariable int id) {
-        Optional<Musica> musica = musicas.stream()
-                .filter(m -> m.getId() == id)
-                .findFirst();
-
-        if (musica.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        return ResponseEntity.ok(musica.get());
+    public ResponseEntity<Musica> buscarMusica(@PathVariable String id) {
+        return repository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Musica> atualizarMusica(@PathVariable int id, @RequestBody Musica musicaAtualizada) {
-        Optional<Musica> musicaOpt = musicas.stream()
-                .filter(m -> m.getId() == id)
-                .findFirst();
-
-        if (musicaOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-
-        Musica musica = musicaOpt.get();
-        musica.setNome(musicaAtualizada.getNome());
-        musica.setArtista(musicaAtualizada.getArtista());
-        musica.setAnoLancamento(musicaAtualizada.getAnoLancamento());
-        musica.setDuracao(musicaAtualizada.getDuracao());
-
-        return ResponseEntity.ok(musica);
+    public ResponseEntity<Musica> atualizarMusica(@PathVariable String id, @RequestBody Musica nova) {
+        return repository.findById(id).map(m -> {
+            m.setNome(nova.getNome());
+            m.setArtista(nova.getArtista());
+            m.setAnoLancamento(nova.getAnoLancamento());
+            m.setDuracao(nova.getDuracao());
+            return ResponseEntity.ok(repository.save(m));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletarMusica(@PathVariable int id) {
-        boolean removido = musicas.removeIf(m -> m.getId() == id);
-        if (!removido) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    public ResponseEntity<Void> deletarMusica(@PathVariable String id) {
+        if (!repository.existsById(id)) {
+            return ResponseEntity.notFound().build();
         }
+        repository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 }
